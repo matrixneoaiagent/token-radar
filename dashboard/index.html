@@ -3,12 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Token Radar: pre-token protocols ranked by implied value</title>
+<title>Token Radar — pre-token protocols ranked by implied value</title>
+<meta name="description" content="A ranked board of protocols that record no token, with the value model and a farm plan for each.">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
 <a class="skip" href="#board">Skip to the board</a>
-<main id="board" tabindex="-1" aria-busy="true"></main>
+<div id="app" aria-busy="true"></div>
+<noscript>This board needs JavaScript to render its data. Every figure is in the page's data file; nothing is fetched from a network.</noscript>
+<dialog id="detail" class="detail" tabindex="-1" aria-labelledby="detail-title"></dialog>
 <script src="../data.js"></script>
 <script src="app.js"></script>
 </body>

@@ -1,14 +1,9 @@
-// A working token-radar-01 entry (Node 22, standard library only).
+// The token radar entry point (Node 22, standard library only).
 //
-// The program reads the sealed snapshot from /input/snapshot.json (or --input <file|dir>), scores every
-// pre-token protocol with the model in lib/model.ts, writes the ranked board to /output/board.json, and
-// copies this repository's dashboard/ and screenshots/ to /output. Last, it writes /output/dossier.json,
-// the summary the judge reads, with the vendored make.fun library.
-//
-// The dashboard is a static page, no framework and no network: dashboard/index.html, dashboard/app.css
-// and dashboard/app.js read /output/data.js, which this program writes from the same board. A starting
-// point, not a winner: it covers the watchlist, states the model and gives every protocol a farm plan.
-// Change the model, the page or the plan; keep the gate's shape.
+// It reads the sealed snapshot, learns the category and chain tables from the protocols that already
+// record a token, ranks every watchlist protocol plus the independent pre-token protocols below the
+// floor, writes /output/board.json and the dashboard's data.js, copies dashboard/ and screenshots/,
+// and writes /output/dossier.json with the vendored make.fun library.
 //
 // Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts --input ../input/snapshot.json
@@ -21,9 +16,10 @@ import { buildDossier } from './vendor/makefun-board.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 
-/** The scorer's own caps (reference/gate.json): the text cap shapes the bytes, the rest refuse. */
+/** The gate's caps: the text cap shapes the dossier bytes; the others only refuse. */
 const TEXT_MAX_BYTES = 65_536;
 const SCREENSHOT_CAPS = { max: 4, max_bytes: 524_288 };
+const DASHBOARD_CAPS = { max_files: 400, max_bytes: 4_194_304 };
 const IMAGE_NAME = /^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$/;
 
 /** --name <value> out of the arguments, or the fallback. */
@@ -69,9 +65,20 @@ function copyFiles(from: string, to: string): string[] {
   return copied;
 }
 
-copyFiles(join(here, 'dashboard'), join(out, 'dashboard'));
+const dashboard = copyFiles(join(here, 'dashboard'), join(out, 'dashboard'));
+for (const required of ['index.html']) {
+  if (!dashboard.includes(required)) {
+    process.stderr.write(`token radar: dashboard/${required} is missing\n`);
+    process.exit(1);
+  }
+}
+if (!dashboard.some((n) => n.endsWith('.css')) || !dashboard.some((n) => n.endsWith('.js'))) {
+  process.stderr.write('token radar: dashboard/ needs at least one .css and one .js file beside index.html\n');
+  process.exit(1);
+}
+
 const shots = copyFiles(join(here, 'screenshots'), join(out, 'screenshots'));
-if (shots.length < 3) {
+if (shots.length < 3 || shots.length > 4) {
   process.stderr.write(`token radar: screenshots/ holds ${shots.length} image${shots.length === 1 ? '' : 's'}: hand in 3, the board, a detail view and a filtered view\n`);
   process.exit(1);
 }
@@ -83,9 +90,15 @@ for (const name of shots) {
 }
 
 // The dossier is written last: the scorer rebuilds it from this /output and compares bytes.
-writeFileSync(join(out, 'dossier.json'), buildDossier(out, { text_max_bytes: TEXT_MAX_BYTES, screenshots: SCREENSHOT_CAPS, dashboard: { max_files: 400, max_bytes: 4_194_304 } }));
+const dossier = buildDossier(out, {
+  text_max_bytes: TEXT_MAX_BYTES,
+  screenshots: SCREENSHOT_CAPS,
+  dashboard: DASHBOARD_CAPS,
+});
+writeFileSync(join(out, 'dossier.json'), dossier);
 
 process.stdout.write(
-  `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows scored (${radar.early_size} early, ${radar.live_size} live set aside)\n` +
-    `token radar: wrote ${join(out, 'board.json')}, ${join(out, 'data.js')}, ${join(out, 'dashboard')} (3 files), ${join(out, 'screenshots')} (${shots.length} images) and ${join(out, 'dossier.json')}\n`,
+  `token radar: ${snapshot.protocols.length} protocols, ${snapshot.watchlist.length} on the watchlist, ${board.length} rows ranked (${radar.early_size} early, ${radar.live_size} live set aside)\n` +
+    `token radar: model ${radar.model.version}, global multiple ${radar.model.global_multiple} from ${radar.model.global_sample} live comparables, ${radar.model.categories.length} category profiles\n` +
+    `token radar: wrote board.json, data.js, dashboard/ (${dashboard.length} files), screenshots/ (${shots.length} images) and dossier.json (${dossier.length} bytes)\n`,
 );
